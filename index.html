@@ -1,0 +1,2038 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgroAlerta Honduras - Sistema de Gestión y Monitoreo Agrícola</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            mint: {
+              50: '#f2f9f4',
+              100: '#e8f5e9',
+              200: '#c8e6c9',
+              300: '#a5d6a7',
+              500: '#4caf50',
+              700: '#2e7d32',
+              900: '#1b5e20',
+            },
+            forest: {
+              800: '#122c1e',
+              900: '#0a1a12',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Supabase JS Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Leaflet CSS & JS for Maps -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Outfit', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #a5d6a7; border-radius: 4px; }
+    .leaflet-popup-content-wrapper { border-radius: 12px; padding: 4px; }
+  </style>
+</head>
+<body class="h-full text-slate-800 bg-[#F8FAF8] antialiased flex flex-col">
+
+  <!-- USER PROFILE MODAL (PERFIL DE PRODUCTOR) -->
+  <div id="userProfileModal" class="hidden fixed inset-0 bg-forest-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 sm:p-8 border border-mint-200 transition-all my-8 relative">
+      
+      <!-- Botón Cerrar -->
+      <button onclick="closeUserProfileModal()" class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 p-2 rounded-full transition-colors">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <!-- Profile Header -->
+      <div class="flex flex-col sm:flex-row items-center gap-4 mb-6 pb-6 border-b border-slate-100">
+        <div class="w-16 h-16 rounded-full bg-mint-100 border-2 border-mint-300 text-mint-700 flex items-center justify-center font-bold text-2xl shadow-sm">
+          <i data-lucide="user" class="w-8 h-8"></i>
+        </div>
+        <div class="text-center sm:text-left">
+          <div class="flex items-center justify-center sm:justify-start gap-2">
+            <h3 id="profileModalName" class="text-xl font-extrabold text-forest-800">Nombre Productor</h3>
+            <span class="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+              <i data-lucide="check-circle" class="w-3 h-3"></i> Productor Verificado
+            </span>
+          </div>
+          <p id="profileModalFarm" class="text-xs text-mint-700 font-semibold mt-1">Finca La Esperanza • Comayagua</p>
+        </div>
+      </div>
+
+      <!-- Profile Tabs -->
+      <div class="flex gap-2 border-b border-slate-100 mb-6 pb-2">
+        <button id="profileTabIndicatorsBtn" onclick="switchProfileTab('indicators')" class="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-mint-700 text-white shadow-sm flex items-center gap-2">
+          <i data-lucide="activity" class="w-4 h-4"></i>
+          <span>Clima y Suelo</span>
+        </button>
+        <button id="profileTabPostsBtn" onclick="switchProfileTab('posts')" class="px-4 py-2 rounded-xl text-xs font-bold transition-all text-slate-600 hover:text-mint-700 bg-slate-50 flex items-center gap-2">
+          <i data-lucide="newspaper" class="w-4 h-4"></i>
+          <span>Publicaciones Antiguas</span>
+        </button>
+      </div>
+
+      <!-- Profile Tab 1: Indicadores de Clima y Suelo -->
+      <div id="profileTabIndicators" class="space-y-4">
+        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Indicadores Fitosanitarios de Finca</h4>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div class="bg-mint-50/60 p-4 rounded-2xl border border-mint-100">
+            <span class="text-[11px] font-bold text-slate-500 uppercase">pH del Suelo</span>
+            <div id="profilePh" class="text-2xl font-extrabold text-forest-800 my-1">6.4 <span class="text-xs font-normal text-slate-400">pH</span></div>
+            <span class="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">Óptimo</span>
+          </div>
+
+          <div class="bg-mint-50/60 p-4 rounded-2xl border border-mint-100">
+            <span class="text-[11px] font-bold text-slate-500 uppercase">Nitrógeno (N)</span>
+            <div id="profileNitro" class="text-2xl font-extrabold text-forest-800 my-1">72 <span class="text-xs font-normal text-slate-400">mg/kg</span></div>
+            <span class="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">Adecuado</span>
+          </div>
+
+          <div class="bg-mint-50/60 p-4 rounded-2xl border border-mint-100">
+            <span class="text-[11px] font-bold text-slate-500 uppercase">Fósforo (P)</span>
+            <div id="profileFosforo" class="text-2xl font-extrabold text-forest-800 my-1">48 <span class="text-xs font-normal text-slate-400">mg/kg</span></div>
+            <span class="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-bold">Moderado</span>
+          </div>
+
+          <div class="bg-mint-50/60 p-4 rounded-2xl border border-mint-100">
+            <span class="text-[11px] font-bold text-slate-500 uppercase">Potasio (K)</span>
+            <div id="profilePotasio" class="text-2xl font-extrabold text-forest-800 my-1">82 <span class="text-xs font-normal text-slate-400">mg/kg</span></div>
+            <span class="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">Alto</span>
+          </div>
+
+          <div class="bg-mint-50/60 p-4 rounded-2xl border border-mint-100">
+            <span class="text-[11px] font-bold text-slate-500 uppercase">Humedad Suelo</span>
+            <div id="profileHumedad" class="text-2xl font-extrabold text-forest-800 my-1">68%</div>
+            <span class="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">Buena</span>
+          </div>
+
+          <div class="bg-mint-50/60 p-4 rounded-2xl border border-mint-100">
+            <span class="text-[11px] font-bold text-slate-500 uppercase">Temperatura</span>
+            <div id="profileTemp" class="text-2xl font-extrabold text-forest-800 my-1">26°C</div>
+            <span class="text-[10px] text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full font-bold">Fresco</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile Tab 2: Publicaciones Antiguas -->
+      <div id="profileTabPosts" class="hidden space-y-4 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+        <div id="profilePostsContainer" class="space-y-4">
+          <!-- Renderizado dinámicamente por JS -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- AUTHENTICATION MODAL (LOGIN & REGISTRO) -->
+  <div id="authModal" class="hidden fixed inset-0 bg-forest-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 sm:p-8 border border-mint-200 transition-all my-8">
+      
+      <!-- Modal Header -->
+      <div class="text-center mb-6">
+        <div class="w-14 h-14 bg-mint-100 text-mint-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+          <i data-lucide="sprout" class="w-8 h-8"></i>
+        </div>
+        <h2 id="authModalTitle" class="text-2xl font-extrabold text-forest-800">Iniciar Sesión</h2>
+        <p class="text-xs text-slate-500 mt-1">Accede a tu cuenta de productor en AgroAlerta Honduras</p>
+      </div>
+
+      <!-- Auth Tabs Switcher -->
+      <div id="authTabsContainer" class="flex bg-slate-100 p-1 rounded-2xl mb-6">
+        <button id="btnTabLogin" type="button" onclick="switchAuthTab('login')" class="flex-1 py-2 text-xs font-bold rounded-xl transition-all bg-white text-forest-800 shadow-sm">
+          Iniciar Sesión
+        </button>
+        <button id="btnTabRegister" type="button" onclick="switchAuthTab('register')" class="flex-1 py-2 text-xs font-bold rounded-xl transition-all text-slate-500 hover:text-forest-800">
+          Registrarse (Crear Cuenta)
+        </button>
+      </div>
+
+      <!-- 1. LOGIN FORM -->
+      <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Correo Electrónico</label>
+          <div class="relative">
+            <i data-lucide="mail" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+            <input type="email" id="loginCorreo" required placeholder="ejemplo@agroalerta.hn" class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Contraseña</label>
+            <button type="button" onclick="switchAuthTab('forgot')" class="text-xs font-bold text-mint-700 hover:text-mint-900 transition-colors">¿Olvidaste tu contraseña?</button>
+          </div>
+          <div class="relative">
+            <i data-lucide="lock" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+            <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+          </div>
+        </div>
+
+        <button type="submit" class="w-full bg-mint-700 hover:bg-mint-900 text-white font-bold py-3 rounded-xl shadow-lg shadow-mint-700/20 transition-all flex items-center justify-center gap-2 mt-2 text-sm">
+          <span>Ingresar a mi Cuenta</span>
+          <i data-lucide="log-in" class="w-4 h-4"></i>
+        </button>
+      </form>
+
+      <!-- 2. REGISTER FORM -->
+      <form id="registerForm" onsubmit="handleRegister(event)" class="hidden space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Nombre</label>
+            <input type="text" id="regNombre" required placeholder="Carlos" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Apellido</label>
+            <input type="text" id="regApellido" required placeholder="Mendoza" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Correo Electrónico</label>
+            <input type="email" id="regCorreo" required placeholder="carlos@agroalerta.hn" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Contraseña</label>
+            <input type="password" id="regPassword" required placeholder="••••••••" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Teléfono</label>
+            <input type="tel" id="regTelefono" placeholder="+504 9999-9999" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Departamento</label>
+            <select id="regDepartamento" required class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm bg-white font-medium">
+              <option value="Comayagua">Comayagua</option>
+              <option value="Copán">Copán</option>
+              <option value="El Paraíso">El Paraíso</option>
+              <option value="Olancho">Olancho</option>
+              <option value="Choluteca">Choluteca</option>
+              <option value="Yoro">Yoro</option>
+              <option value="Santa Bárbara">Santa Bárbara</option>
+              <option value="Francisco Morazán">Francisco Morazán</option>
+              <option value="Cortés">Cortés</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Municipio</label>
+            <input type="text" id="regMunicipio" required placeholder="Siguatepeque" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Comunidad / Finca</label>
+            <input type="text" id="regComunidad" required placeholder="Finca El Paraíso" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Foto de Perfil (URL Opcional)</label>
+          <input type="url" id="regFoto" placeholder="https://ejemplo.com/mi-foto.jpg" class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+        </div>
+
+        <button type="submit" class="w-full bg-mint-700 hover:bg-mint-900 text-white font-bold py-3 rounded-xl shadow-lg shadow-mint-700/20 transition-all flex items-center justify-center gap-2 mt-2 text-sm">
+          <span>Crear Cuenta en Supabase</span>
+          <i data-lucide="user-plus" class="w-4 h-4"></i>
+        </button>
+      </form>
+
+      <!-- 3. FORGOT PASSWORD FORM -->
+      <form id="forgotForm" onsubmit="handleForgotPassword(event)" class="hidden space-y-4">
+        <p class="text-xs text-slate-600 mb-3">Ingresa tu correo electrónico y te enviaremos instrucciones para recuperar tu contraseña.</p>
+        
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Correo Electrónico</label>
+          <div class="relative">
+            <i data-lucide="mail" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+            <input type="email" id="forgotCorreo" required placeholder="ejemplo@agroalerta.hn" class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+          </div>
+        </div>
+
+        <button type="submit" class="w-full bg-mint-700 hover:bg-mint-900 text-white font-bold py-3 rounded-xl shadow-lg shadow-mint-700/20 transition-all flex items-center justify-center gap-2 mt-2 text-sm">
+          <span>Enviar código de recuperación</span>
+          <i data-lucide="send" class="w-4 h-4"></i>
+        </button>
+
+        <div class="mt-4 text-center">
+          <button type="button" onclick="switchAuthTab('login')" class="text-xs text-mint-700 hover:text-mint-900 font-bold">
+            Volver a Iniciar Sesión
+          </button>
+        </div>
+      </form>
+
+      <!-- 4. OTP VERIFICATION FORM -->
+      <form id="otpForm" onsubmit="handleVerifyOtp(event)" class="hidden space-y-4">
+        <p class="text-xs text-slate-600 mb-3">Ingresa el código provisional enviado a tu correo.</p>
+        
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Código Provisional</label>
+          <div class="relative">
+            <i data-lucide="key-round" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+            <input type="text" id="otpCode" required placeholder="Ej: 12554917" maxlength="20" class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm text-center tracking-widest font-bold">
+          </div>
+        </div>
+
+        <button type="submit" class="w-full bg-mint-700 hover:bg-mint-900 text-white font-bold py-3 rounded-xl shadow-lg shadow-mint-700/20 transition-all flex items-center justify-center gap-2 mt-2 text-sm">
+          <span>Verificar Código</span>
+          <i data-lucide="check-circle" class="w-4 h-4"></i>
+        </button>
+
+        <div class="mt-4 text-center">
+          <button type="button" onclick="switchAuthTab('login')" class="text-xs text-mint-700 hover:text-mint-900 font-bold">
+            Cancelar y volver
+          </button>
+        </div>
+      </form>
+
+      <!-- 5. NEW PASSWORD FORM -->
+      <form id="newPasswordForm" onsubmit="handleUpdatePassword(event)" class="hidden space-y-4">
+        <p class="text-xs text-slate-600 mb-3">El código fue verificado. Ahora establece tu nueva contraseña.</p>
+        
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Nueva Contraseña</label>
+          <div class="relative">
+            <i data-lucide="lock" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+            <input type="password" id="newPasswordInput" required placeholder="Tu nueva contraseña" class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm">
+          </div>
+        </div>
+
+        <button type="submit" class="w-full bg-forest-800 hover:bg-forest-900 text-white font-bold py-3 rounded-xl shadow-lg shadow-forest-800/20 transition-all flex items-center justify-center gap-2 mt-2 text-sm">
+          <span>Guardar Nueva Contraseña</span>
+          <i data-lucide="save" class="w-4 h-4"></i>
+        </button>
+      </form>
+
+
+      <div class="mt-4 text-center" id="closeAuthBtnContainer">
+        <button type="button" onclick="document.getElementById('authModal').classList.add('hidden')" class="text-xs text-slate-400 hover:text-slate-600 font-semibold underline">
+          Cerrar sin autenticar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MAIN APP WRAPPER -->
+  <div class="flex-1 flex flex-col min-h-screen">
+    
+    <!-- TOP NAVIGATION BAR -->
+    <header class="bg-white border-b border-mint-100 sticky top-0 z-30 shadow-sm">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+          
+          <!-- Logo & Brand -->
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-mint-700 text-white rounded-xl flex items-center justify-center shadow-md shadow-mint-700/30">
+              <i data-lucide="shield-alert" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <span class="text-xl font-extrabold text-forest-800 tracking-tight flex items-center gap-1.5">
+                AgroAlerta <span class="text-xs bg-mint-100 text-mint-700 px-2 py-0.5 rounded-full font-bold">Honduras</span>
+              </span>
+              <p class="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Red Agrícola Activa
+              </p>
+            </div>
+          </div>
+
+          <!-- Navigation Tabs -->
+          <nav class="hidden md:flex items-center space-x-1 bg-mint-50/80 p-1.5 rounded-2xl border border-mint-100">
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn active px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 bg-white text-mint-700 shadow-sm">
+              <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+              <span>Dashboard</span>
+            </button>
+            <button onclick="switchTab('comunidad')" id="tab-comunidad" class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 text-slate-600 hover:text-mint-700">
+              <i data-lucide="users" class="w-4 h-4"></i>
+              <span>Feed Comunidad</span>
+            </button>
+            <button onclick="switchTab('mapa')" id="tab-mapa" class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 text-slate-600 hover:text-mint-700">
+              <i data-lucide="map" class="w-4 h-4"></i>
+              <span>Mapa de Plagas</span>
+            </button>
+            <button onclick="switchTab('historial')" id="tab-historial" class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 text-slate-600 hover:text-mint-700">
+              <i data-lucide="history" class="w-4 h-4"></i>
+              <span>Mis Publicaciones</span>
+            </button>
+            <button onclick="switchTab('alertas')" id="tab-alertas" class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 text-slate-600 hover:text-mint-700">
+              <i data-lucide="cloud-rain" class="w-4 h-4"></i>
+              <span>Clima y Suelo</span>
+            </button>
+          </nav>
+
+          <!-- User Profile & Action -->
+          <div id="userHeaderContainer" class="flex items-center gap-3">
+            <!-- Dynamically rendered by updateUserUI() -->
+          </div>
+
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT BODY -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      
+      <!-- TOAST NOTIFICATION CONTAINER -->
+      <div id="toastContainer" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+      <!-- ================= 1. DASHBOARD MODULE ================= -->
+      <section id="module-dashboard" class="tab-content space-y-6">
+
+        <!-- Bloque bloqueado -->
+        <div id="dashboardLock" class="hidden">
+          <div class="bg-white rounded-3xl p-10 border border-mint-100 shadow-sm text-center">
+            <div class="w-14 h-14 bg-mint-50 text-mint-700 rounded-full flex items-center justify-center mx-auto mb-3 border border-mint-100">
+              <i data-lucide="lock" class="w-7 h-7 text-forest-800"></i>
+            </div>
+            <h4 class="text-base font-extrabold text-forest-800">Inicia sesión para ver el Dashboard</h4>
+            <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">Debes iniciar sesión para poder visualizar el monitoreo agrícola en tiempo real de tu región.</p>
+          </div>
+        </div>
+
+        <!-- Contenido principal -->
+        <div id="dashboardContent" class="space-y-6">
+        
+        <!-- Welcome Hero Banner -->
+        <div class="bg-gradient-to-r from-mint-700 via-mint-900 to-forest-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+          <div class="relative z-10 max-w-2xl">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-xs font-semibold text-mint-200 border border-white/10 mb-3">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Sistema de Monitoreo Fitosanitario
+            </span>
+            <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Monitoreo Agrícola en Tiempo Real</h1>
+            <p class="mt-2 text-mint-100 text-sm leading-relaxed">
+              Plataforma comunitaria de alerta temprana y monitoreo agrícola para productores hondureños.
+            </p>
+          </div>
+        </div>
+
+        <!-- Quick Status Cards Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          
+          <!-- Card 1: Clima Actual -->
+          <div class="bg-mint-100/60 border border-mint-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-xs font-bold uppercase tracking-wider text-forest-800">Clima Actual</span>
+              <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shadow-sm">
+                <i data-lucide="sun" class="w-6 h-6"></i>
+              </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span id="statClimaTemp" class="text-3xl font-extrabold text-forest-800">28°C</span>
+              <span id="statClimaDesc" class="text-sm font-semibold text-amber-700">Soleado</span>
+            </div>
+            <p id="statClimaViento" class="text-xs text-slate-600 mt-2 flex items-center gap-1">
+              <i data-lucide="wind" class="w-3.5 h-3.5 text-slate-400"></i>
+              Viento: 12 km/h • Humedad Relativa: 68%
+            </p>
+          </div>
+
+          <!-- Card 2: Humedad del Suelo -->
+          <div class="bg-mint-100/60 border border-mint-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-xs font-bold uppercase tracking-wider text-forest-800">Humedad del Suelo</span>
+              <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">
+                <i data-lucide="droplets" class="w-6 h-6"></i>
+              </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span id="statSueloHumedad" class="text-3xl font-extrabold text-forest-800">84%</span>
+              <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">Óptima</span>
+            </div>
+            <p class="text-xs text-slate-600 mt-2 flex items-center gap-1">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i>
+              Medición registrada en base de datos
+            </p>
+          </div>
+
+          <!-- Card 3: Nivel de Riesgo Plagas -->
+          <div class="bg-mint-100/60 border border-mint-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow sm:col-span-2 lg:col-span-1">
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-xs font-bold uppercase tracking-wider text-forest-800">Nivel de Riesgo</span>
+              <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shadow-sm">
+                <i data-lucide="bug" class="w-6 h-6"></i>
+              </div>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span id="statRiesgoNivel" class="text-3xl font-extrabold text-amber-600">Medio</span>
+              <span class="text-xs bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-200">Vigilar</span>
+            </div>
+            <p id="statRiesgoConteo" class="text-xs text-slate-600 mt-2 flex items-center gap-1">
+              <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-600"></i>
+              Publicaciones activas registradas
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Chart Section & Live Feed -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Chart Column (2 Cols) -->
+          <div class="lg:col-span-2 bg-white rounded-3xl p-6 border border-mint-100 shadow-sm flex flex-col">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+              <div>
+                <h3 class="text-lg font-bold text-forest-800 flex items-center gap-2">
+                  <i data-lucide="trending-up" class="w-5 h-5 text-mint-700"></i>
+                  Tendencia de Humedad del Suelo
+                </h3>
+                <p class="text-xs text-slate-500">Histórico de mediciones (Enero - Diciembre)</p>
+              </div>
+            </div>
+            <div class="relative flex-1 min-h-[280px]">
+              <canvas id="soilHumidityChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Recent Alerts Feed (1 Col) -->
+          <div class="bg-white rounded-3xl p-6 border border-mint-100 shadow-sm flex flex-col">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-forest-800 flex items-center gap-2">
+                <i data-lucide="database" class="w-5 h-5 text-mint-700"></i>
+                Feed DB en Vivo
+              </h3>
+              <span class="text-xs bg-emerald-100 text-emerald-700 font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">Sincronizado</span>
+            </div>
+
+            <div id="dashboardAlertsFeed" class="space-y-3 flex-1 overflow-y-auto max-h-[340px] pr-1 custom-scrollbar">
+              <!-- JS Populated Feed Cards -->
+            </div>
+
+            <button onclick="switchTab('comunidad')" class="w-full mt-4 bg-mint-50 hover:bg-mint-100 text-mint-700 border border-mint-200 font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+              <i data-lucide="users" class="w-4 h-4"></i>
+              <span>Ver Feed Completo de la Comunidad</span>
+            </button>
+          </div>
+
+        </div>
+        </div>
+
+      </section>
+
+      <!-- ================= 2. MÓDULO FEED DE COMUNIDAD (NUEVO) ================= -->
+      <section id="module-comunidad" class="tab-content hidden space-y-6">
+        
+        <div class="max-w-4xl mx-auto space-y-6">
+          
+          <!-- Banner Superior del Feed -->
+          <div class="bg-white rounded-3xl p-6 border border-mint-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-forest-800 flex items-center gap-2">
+                <i data-lucide="users" class="w-6 h-6 text-mint-700"></i>
+                Muro Comunitario de Agricultores
+              </h2>
+              <p class="text-xs text-slate-500 mt-0.5">Explora las publicaciones, estado de fincas y reportes compartidos por agricultores en Honduras.</p>
+            </div>
+            <button onclick="document.getElementById('postInputTitle').focus()" class="bg-mint-700 hover:bg-mint-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              <span>Crear Publicación</span>
+            </button>
+          </div>
+
+          <!-- Formulario de Nueva Publicación en el Feed (Reporte de Incidencia) -->
+          <div class="bg-white rounded-3xl p-6 border border-mint-200 shadow-md">
+            <div class="flex items-center gap-3 mb-2">
+              <div class="w-10 h-10 rounded-2xl bg-mint-100 border border-mint-200 text-mint-700 flex items-center justify-center font-bold shadow-sm">
+                <i data-lucide="shield-alert" class="w-6 h-6 text-forest-800"></i>
+              </div>
+              <div>
+                <h3 class="text-xl font-extrabold text-forest-800 tracking-tight">Reportar Incidencia de Plaga</h3>
+                <p class="text-xs text-slate-500 font-medium">Completa el formulario para alertar a otros agricultores de tu región sobre plagas detectadas.</p>
+              </div>
+            </div>
+            <hr class="border-slate-100 my-4">
+
+            <form onsubmit="handleCreatePost(event)" class="space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">PLAGA / ENFERMEDAD</label>
+                  <select id="postPlaga" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm bg-white font-semibold text-slate-800">
+                    <option value="Gusano Cogollero">Gusano Cogollero</option>
+                    <option value="Roya del Café">Roya del Café</option>
+                    <option value="Gorgojo del Pino">Gorgojo del Pino</option>
+                    <option value="Mosca Blanca">Mosca Blanca</option>
+                    <option value="Trips">Trips</option>
+                    <option value="Pulgón">Pulgón</option>
+                    <option value="Mancha de Asfalto">Mancha de Asfalto</option>
+                    <option value="Otra Incidencia">Otra Incidencia</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">NIVEL DE SEVERIDAD</label>
+                  <select id="postSeveridad" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm bg-white font-semibold text-slate-800">
+                    <option value="Bajo">Bajo</option>
+                    <option value="Medio" selected>Medio</option>
+                    <option value="Alto">Alto</option>
+                    <option value="Crítico">Crítico</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">NOMBRE DE FINCA</label>
+                  <input type="text" id="postFinca" required placeholder="Finca El Paraíso" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm font-medium text-slate-800">
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">DEPARTAMENTO</label>
+                  <select id="postRegion" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm bg-white font-semibold text-slate-800">
+                    <option value="Comayagua">Comayagua</option>
+                    <option value="Copán">Copán</option>
+                    <option value="El Paraíso">El Paraíso</option>
+                    <option value="Olancho">Olancho</option>
+                    <option value="Choluteca">Choluteca</option>
+                    <option value="Yoro">Yoro</option>
+                    <option value="Santa Bárbara">Santa Bárbara</option>
+                    <option value="Cortés">Cortés</option>
+                    <option value="Atlántida">Atlántida</option>
+                    <option value="La Paz">La Paz</option>
+                    <option value="Lempira">Lempira</option>
+                    <option value="Intibucá">Intibucá</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">FOTO / IMAGEN DE LA INCIDENCIA (OPCIONAL)</label>
+                <div class="flex flex-col sm:flex-row items-center gap-3">
+                  <label class="cursor-pointer bg-mint-50 hover:bg-mint-100 text-mint-700 border border-mint-200 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all shrink-0">
+                    <i data-lucide="image" class="w-4 h-4"></i>
+                    <span>Subir Foto del Cultivo</span>
+                    <input type="file" id="postImageFile" accept="image/*" onchange="handlePostImageSelect(event)" class="hidden">
+                  </label>
+                  <span class="text-xs text-slate-400 font-semibold">o por enlace:</span>
+                  <input type="url" id="postImageUrl" placeholder="https://ejemplo.com/foto.jpg" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-xs">
+                </div>
+                <div id="postImagePreviewContainer" class="hidden mt-3 relative inline-block">
+                  <img id="postImagePreview" src="" class="w-32 h-24 object-cover rounded-xl border border-mint-200 shadow-sm">
+                  <button type="button" onclick="removePostImagePreview()" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600">
+                    <i data-lucide="x" class="w-3 h-3"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">OBSERVACIONES</label>
+                <textarea id="postInputDesc" rows="3" required placeholder="Inserta descripción de la incidencia..." class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm"></textarea>
+              </div>
+
+              <div class="pt-2 flex justify-end">
+                <button type="submit" class="bg-forest-800 hover:bg-forest-900 text-white font-extrabold px-8 py-3 rounded-xl shadow-lg shadow-forest-800/20 transition-all flex items-center gap-2 text-sm">
+                  <i data-lucide="send" class="w-4 h-4"></i>
+                  <span>Publicar Reporte</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Filtro del Muro Comunitario -->
+          <div class="flex justify-between items-center mb-2 px-2 mt-4">
+            <h3 class="text-sm font-extrabold text-forest-800">Publicaciones Recientes</h3>
+            <div class="flex items-center gap-2">
+              <label for="feedFilterRegion" class="text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:block">Departamento:</label>
+              <select id="feedFilterRegion" onchange="renderSocialFeed()" class="px-3 py-1.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-mint-500 text-sm bg-white font-semibold text-slate-800 shadow-sm cursor-pointer">
+                <option value="Todos">Todos</option>
+                <option value="Comayagua">Comayagua</option>
+                <option value="Copán">Copán</option>
+                <option value="El Paraíso">El Paraíso</option>
+                <option value="Olancho">Olancho</option>
+                <option value="Choluteca">Choluteca</option>
+                <option value="Yoro">Yoro</option>
+                <option value="Santa Bárbara">Santa Bárbara</option>
+                <option value="Cortés">Cortés</option>
+                <option value="Atlántida">Atlántida</option>
+                <option value="La Paz">La Paz</option>
+                <option value="Lempira">Lempira</option>
+                <option value="Intibucá">Intibucá</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Feed Dinámico de Publicaciones -->
+          <div id="socialFeedContainer" class="space-y-5">
+            <!-- Renderizado dinámico vía JS -->
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- ================= 3. MAPA E HISTORIAL DE PLAGAS ================= -->
+      <section id="module-mapa" class="tab-content hidden space-y-6">
+        <div class="bg-white rounded-3xl p-6 border border-mint-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-forest-800 flex items-center gap-2">
+              <i data-lucide="map-pin" class="w-6 h-6 text-mint-700"></i>
+              Mapa Fitosanitario
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">Ubicaciones de alertas registradas en el país.</p>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <label for="filterRegion" class="text-xs font-bold text-slate-600 uppercase">Región:</label>
+            <select id="filterRegion" onchange="filterMapRegion()" class="bg-mint-50 border border-mint-200 text-forest-800 text-sm font-semibold rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-mint-500">
+              <option value="TODAS">Todas las Regiones</option>
+              <option value="Comayagua">Comayagua</option>
+              <option value="Copán">Copán</option>
+              <option value="El Paraíso">El Paraíso</option>
+              <option value="Olancho">Olancho</option>
+              <option value="Choluteca">Choluteca</option>
+              <option value="Yoro">Yoro</option>
+              <option value="Santa Bárbara">Santa Bárbara</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 bg-white rounded-3xl p-4 border border-mint-100 shadow-sm relative overflow-hidden flex flex-col min-h-[450px]">
+            <div id="map" class="w-full h-full min-h-[420px] rounded-2xl z-10"></div>
+          </div>
+
+          <div class="bg-white rounded-3xl p-6 border border-mint-100 shadow-sm flex flex-col">
+            <h3 class="text-lg font-bold text-forest-800 mb-1 flex items-center gap-2">
+              <i data-lucide="file-search" class="w-5 h-5 text-mint-700"></i>
+              Detalle de la Incidencia
+            </h3>
+            <p class="text-xs text-slate-500 mb-4">Información detallada y recomendaciones para el productor.</p>
+
+            <div id="pestDetailCard" class="flex-1 bg-mint-50/70 border border-mint-100 rounded-2xl p-5 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <span id="detailBadge" class="text-xs font-extrabold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                    Riesgo Medio
+                  </span>
+                  <span id="detailDate" class="text-xs text-slate-400">Hace 2 horas</span>
+                </div>
+                <h4 id="detailTitle" class="text-lg font-extrabold text-forest-800">Gusano Cogollero</h4>
+                <p id="detailLocation" class="text-xs text-mint-700 font-semibold mt-0.5">Comayagua • Finca El Manantial</p>
+                
+                <div class="my-4 border-t border-mint-200/60 pt-3 space-y-2 text-xs text-slate-600">
+                  <p><strong>Síntomas:</strong> <span id="detailSymptoms">Perforaciones circulares en hojas tiernas de maíz.</span></p>
+                  <p><strong>Tratamiento Recomendado:</strong> <span id="detailTreatment">Aplicar Bacillus thuringiensis o extracto de Neem.</span></p>
+                </div>
+              </div>
+
+              <div class="bg-white p-3 rounded-xl border border-mint-100 text-xs text-slate-500">
+                <span class="font-bold text-slate-700">Código de Alerta:</span> <span id="detailSqlId">AG-101</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="module-historial" class="tab-content hidden space-y-6">
+        <div class="bg-white rounded-3xl p-6 border border-mint-100 shadow-sm">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-forest-800 flex items-center gap-2">
+                <i data-lucide="history" class="w-6 h-6 text-mint-700"></i>
+                Mis Publicaciones
+              </h2>
+              <p class="text-xs text-slate-500 mt-0.5">Historial de todas las incidencias que has reportado en el muro comunitario.</p>
+            </div>
+            <button onclick="switchTab('comunidad')" class="bg-mint-50 hover:bg-mint-100 text-mint-700 font-bold px-4 py-2 rounded-xl text-xs transition-colors border border-mint-200">
+              Crear Nuevo Reporte
+            </button>
+          </div>
+        </div>
+
+        <!-- Contenedor del Historial -->
+        <div id="historialFeedContainer" class="space-y-6">
+          <div class="bg-white rounded-3xl p-10 border border-mint-100 shadow-sm text-center">
+            <div class="w-14 h-14 bg-mint-50 text-mint-700 rounded-full flex items-center justify-center mx-auto mb-3 border border-mint-100">
+              <i data-lucide="inbox" class="w-7 h-7 text-forest-800"></i>
+            </div>
+            <h4 class="text-base font-extrabold text-forest-800">No has realizado ninguna publicación</h4>
+            <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">Inicia sesión y dirígete al muro comunitario para crear tu primer reporte.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 5. MÓDULO CLIMA Y SUELO ================= -->
+      <section id="module-alertas" class="tab-content hidden space-y-6">
+        
+        <!-- Bloque bloqueado -->
+        <div id="climaSueloLock" class="hidden">
+          <div class="bg-white rounded-3xl p-10 border border-mint-100 shadow-sm text-center">
+            <div class="w-14 h-14 bg-mint-50 text-mint-700 rounded-full flex items-center justify-center mx-auto mb-3 border border-mint-100">
+              <i data-lucide="lock" class="w-7 h-7 text-forest-800"></i>
+            </div>
+            <h4 class="text-base font-extrabold text-forest-800">Inicia sesión para ver Clima y Suelo</h4>
+            <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">Debes iniciar sesión para poder visualizar los indicadores fitosanitarios de tu finca.</p>
+          </div>
+        </div>
+
+        <!-- Contenido principal -->
+        <div id="climaSueloContent" class="space-y-6">
+          <div class="bg-white rounded-3xl p-6 border border-mint-100 shadow-sm">
+            <h2 class="text-xl font-bold text-forest-800 flex items-center gap-2">
+              <i data-lucide="cloud-rain" class="w-6 h-6 text-mint-700"></i>
+              Indicadores de Clima y Suelo
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">Estado de humedad y nutrientes del terreno.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div class="bg-white rounded-2xl p-5 border border-mint-100 shadow-sm">
+              <span class="text-xs font-bold text-slate-500 uppercase">Nivel de pH</span>
+              <div class="text-3xl font-extrabold text-forest-800 my-2">6.5 <span class="text-xs font-normal text-slate-400">pH</span></div>
+              <div class="w-full bg-slate-100 rounded-full h-2.5">
+                <div class="bg-emerald-500 h-2.5 rounded-full" style="width: 65%"></div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-5 border border-mint-100 shadow-sm">
+              <span class="text-xs font-bold text-slate-500 uppercase">Nitrógeno (N)</span>
+              <div class="text-3xl font-extrabold text-forest-800 my-2">75 <span class="text-xs font-normal text-slate-400">mg/kg</span></div>
+              <div class="w-full bg-slate-100 rounded-full h-2.5">
+                <div class="bg-emerald-600 h-2.5 rounded-full" style="width: 75%"></div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-5 border border-mint-100 shadow-sm">
+              <span class="text-xs font-bold text-slate-500 uppercase">Fósforo (P)</span>
+              <div class="text-3xl font-extrabold text-forest-800 my-2">45 <span class="text-xs font-normal text-slate-400">mg/kg</span></div>
+              <div class="w-full bg-slate-100 rounded-full h-2.5">
+                <div class="bg-amber-500 h-2.5 rounded-full" style="width: 45%"></div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-5 border border-mint-100 shadow-sm">
+              <span class="text-xs font-bold text-slate-500 uppercase">Potasio (K)</span>
+              <div class="text-3xl font-extrabold text-forest-800 my-2">80 <span class="text-xs font-normal text-slate-400">mg/kg</span></div>
+              <div class="w-full bg-slate-100 rounded-full h-2.5">
+                <div class="bg-emerald-500 h-2.5 rounded-full" style="width: 80%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- JAVASCRIPT & SUPABASE INTEGRATION LOGIC -->
+  <script>
+    // Supabase Client Config Init
+    // IMPORTANTE: Reemplaza estos valores con los de tu proyecto Supabase.
+    // Nunca expongas llaves reales en código fuente público.
+    const SUPABASE_URL = "https://your-supabase-project-id.supabase.co";
+    const SUPABASE_KEY = "your-supabase-anon-key-here";
+
+    let supabaseClient = null;
+    if (window.supabase && SUPABASE_URL.includes("supabase.co") && !SUPABASE_URL.includes("your-supabase")) {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+
+    let currentUser = null;
+
+    let map = null;
+    let mapMarkers = [];
+
+    // Publicaciones / Feed (Base de datos real de Supabase)
+    let communityPosts = [];
+    let pestReports = [];
+
+    document.addEventListener("DOMContentLoaded", function() {
+      const savedUser = localStorage.getItem('agroalerta_user');
+      if (savedUser) {
+        try { currentUser = JSON.parse(savedUser); } catch(e) {}
+      }
+      updateUserUI();
+      lucide.createIcons();
+      initSoilChart();
+      renderSocialFeed();
+      renderHistorialFeed();
+      renderAlertsFeed();
+      switchTab('comunidad');
+      fetchSupabasePosts();
+    });
+
+    async function fetchSupabasePosts() {
+      if (!supabaseClient) return;
+      try {
+        // Intentar traer publicaciones junto con la información del usuario, likes y comentarios
+        let { data, error } = await supabaseClient
+          .from('publicaciones')
+          .select('*, usuarios(nombre, apellido, departamento, comunidad), likes(usuario_id), comentarios(comentario, usuarios(nombre, apellido))')
+          .order('created_at', { ascending: false });
+
+        if (error || !data) {
+          // Fallback en caso de que la Foreign Key no esté vinculada formalmente en Postgres
+          const fallback = await supabaseClient
+            .from('publicaciones')
+            .select('*')
+            .order('created_at', { ascending: false });
+          data = fallback.data || [];
+        }
+
+        if (data && data.length > 0) {
+          communityPosts = data.map(p => {
+            const userObj = p.usuarios || {};
+            const nombreUser = userObj.nombre ? `${userObj.nombre} ${userObj.apellido || ''}`.trim() : (p.usuario_nombre || "Productor Agrícola");
+            const fincaUser = userObj.comunidad || p.finca || "Finca Registrada";
+            const regionUser = userObj.departamento || p.departamento || "Comayagua";
+
+            const postLikes = p.likes || [];
+            const isLiked = currentUser ? postLikes.some(l => l.usuario_id === currentUser.id) : false;
+
+            const postComments = (p.comentarios || []).map(c => {
+              const cUserObj = c.usuarios || {};
+              const cNombreUser = cUserObj.nombre ? `${cUserObj.nombre} ${cUserObj.apellido || ''}`.trim() : "Usuario";
+              return {
+                usuario: cNombreUser,
+                texto: c.comentario
+              };
+            });
+
+            return {
+              id: p.id,
+              usuario_id: p.usuario_id,
+              usuario: nombreUser,
+              finca: fincaUser,
+              region: regionUser,
+              titulo: p.titulo || "Reporte Fitosanitario",
+              descripcion: p.descripcion || "",
+              severidad: p.severidad || "Medio",
+              imagen: p.foto || p.imagen || null,
+              fecha: p.created_at ? new Date(p.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "Reciente",
+              likes: postLikes.length,
+              liked: isLiked,
+              comentarios: postComments
+            };
+          });
+
+          // Sincronizar el mapa fitosanitario con los datos reales de la base de datos
+          const DEPARTMENT_COORDS = {
+            'Comayagua': { lat: 14.4594, lng: -87.6375 },
+            'Copán': { lat: 14.8384, lng: -88.9472 },
+            'El Paraíso': { lat: 13.9961, lng: -86.5519 },
+            'Olancho': { lat: 14.6548, lng: -85.9189 },
+            'Choluteca': { lat: 13.3031, lng: -87.1914 },
+            'Yoro': { lat: 15.1375, lng: -87.1281 },
+            'Santa Bárbara': { lat: 14.9194, lng: -88.2361 },
+            'Cortés': { lat: 15.5042, lng: -88.0250 },
+            'Atlántida': { lat: 15.7597, lng: -86.7822 },
+            'La Paz': { lat: 14.3194, lng: -87.6792 },
+            'Lempira': { lat: 14.5889, lng: -88.5806 },
+            'Intibucá': { lat: 14.3175, lng: -88.1578 }
+          };
+
+          pestReports = communityPosts.map(p => {
+            const base = DEPARTMENT_COORDS[p.region] || { lat: 14.4594, lng: -87.6375 };
+            return {
+              id: "REP-" + p.id,
+              plaga: p.titulo,
+              finca: p.finca,
+              region: p.region,
+              severidad: p.severidad,
+              fecha: p.fecha,
+              lat: base.lat + (Math.random() - 0.5) * 0.05,
+              lng: base.lng + (Math.random() - 0.5) * 0.05,
+              sintomas: p.descripcion,
+              tratamiento: "Monitoreo técnico de campo recomendado."
+            };
+          });
+
+          renderSocialFeed();
+      renderHistorialFeed();
+          if (typeof renderRecentIncidencesList === 'function') renderRecentIncidencesList();
+          if (map && typeof renderMapMarkers === 'function') renderMapMarkers(pestReports);
+        } else {
+          communityPosts = [];
+          pestReports = [];
+          renderSocialFeed();
+      renderHistorialFeed();
+        }
+      } catch (err) {
+        console.error("Supabase fetch notice:", err);
+      }
+    }
+
+    // Renderizar Muro de Comunidad
+    let currentPostImageBase64 = null;
+
+    function handlePostImageSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          currentPostImageBase64 = e.target.result;
+          document.getElementById('postImagePreview').src = e.target.result;
+          document.getElementById('postImagePreviewContainer').classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function removePostImagePreview() {
+      currentPostImageBase64 = null;
+      const fileInput = document.getElementById('postImageFile');
+      const urlInput = document.getElementById('postImageUrl');
+      if (fileInput) fileInput.value = '';
+      if (urlInput) urlInput.value = '';
+      document.getElementById('postImagePreviewContainer').classList.add('hidden');
+    }
+
+    function renderSocialFeed() {
+      const container = document.getElementById('socialFeedContainer');
+      if (!container) return;
+
+      const feedFilterRegion = document.getElementById('feedFilterRegion');
+      const selectedRegion = feedFilterRegion ? feedFilterRegion.value : 'Todos';
+
+      let postsToRender = communityPosts || [];
+      if (selectedRegion !== 'Todos') {
+        postsToRender = postsToRender.filter(p => p.region === selectedRegion);
+      }
+
+      if (postsToRender.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-3xl p-10 border border-mint-100 shadow-sm text-center">
+            <div class="w-14 h-14 bg-mint-50 text-mint-700 rounded-full flex items-center justify-center mx-auto mb-3 border border-mint-100">
+              <i data-lucide="inbox" class="w-7 h-7 text-forest-800"></i>
+            </div>
+            <h4 class="text-base font-extrabold text-forest-800">No se encontraron reportes${selectedRegion !== 'Todos' ? ` en ${selectedRegion}` : ''}</h4>
+            <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">Prueba seleccionando otro departamento o sé el primero en publicar.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = postsToRender.map(post => {
+        const bgBadge = post.severidad === 'Crítico' ? 'bg-red-200 text-red-800 border-red-300' :
+                        post.severidad === 'Alto' ? 'bg-red-100 text-red-700 border-red-200' :
+                        post.severidad === 'Medio' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                        'bg-emerald-100 text-emerald-700 border-emerald-200';
+
+        const heartColor = post.liked ? 'fill-red-500 text-red-500' : 'text-slate-400';
+
+        const commentsHtml = post.comentarios.map(c => `
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs">
+            <span class="font-bold text-forest-800">${c.usuario}:</span>
+            <span class="text-slate-600 ml-1">${c.texto}</span>
+          </div>
+        `).join('');
+
+        const imageHtml = post.imagen ? `
+          <div class="rounded-2xl overflow-hidden max-h-80 border border-slate-100 my-2 shadow-sm">
+            <img src="${post.imagen}" alt="Incidencia" class="w-full h-full object-cover">
+          </div>
+        ` : '';
+
+        return `
+          <div class="bg-white rounded-3xl p-6 border border-mint-100 shadow-sm space-y-4">
+            <!-- Header de la tarjeta -->
+            <div class="flex items-center justify-between">
+              <div onclick="openUserProfileModal('${post.usuario_id || ''}', '${(post.usuario || '').replace(/'/g, "\\'")}', '${(post.finca || '').replace(/'/g, "\\'")}', '${(post.region || '').replace(/'/g, "\\'")}')" class="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-all group" title="Ver perfil de ${post.usuario}">
+                <div class="w-11 h-11 rounded-full bg-mint-100 border border-mint-200 text-mint-700 flex items-center justify-center font-bold text-base group-hover:scale-105 transition-transform shadow-sm">
+                  <i data-lucide="user" class="w-6 h-6"></i>
+                </div>
+                <div>
+                  <h4 class="text-sm font-extrabold text-forest-800 group-hover:text-mint-700 transition-colors flex items-center gap-1">
+                    ${post.usuario}
+                    <i data-lucide="external-link" class="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                  </h4>
+                  <p class="text-xs text-mint-700 font-semibold">${post.finca} • ${post.region}</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-xs font-extrabold px-2.5 py-0.5 rounded-full border ${bgBadge}">${post.severidad}</span>
+                <span class="text-[11px] text-slate-400 block mt-1">${post.fecha}</span>
+              </div>
+            </div>
+
+            <!-- Contenido principal -->
+            <div>
+              <h3 class="text-base font-extrabold text-slate-900 mb-1.5 flex items-center gap-2">
+                <i data-lucide="bug" class="w-4 h-4 text-mint-700"></i> ${post.titulo}
+              </h3>
+              <p class="text-xs text-slate-600 leading-relaxed">${post.descripcion}</p>
+              ${imageHtml}
+            </div>
+
+            <!-- Footer de interacciones -->
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <button onclick="toggleLike('${post.id}')" class="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-red-500 transition-colors">
+                <i data-lucide="heart" class="w-4 h-4 ${heartColor}"></i>
+                <span>${post.likes} Me gusta</span>
+              </button>
+              <span class="text-xs text-slate-400 font-medium flex items-center gap-1">
+                <i data-lucide="message-square" class="w-4 h-4 text-slate-400"></i> ${post.comentarios.length} comentarios
+              </span>
+            </div>
+
+            <!-- Lista de comentarios y caja de entrada -->
+            <div class="space-y-2 pt-1">
+              ${commentsHtml}
+              
+              <div class="flex gap-2 pt-1">
+                <input type="text" id="inputComment-${post.id}" placeholder="Escribe un comentario..." class="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-mint-500">
+                <button onclick="addComment('${post.id}')" class="bg-mint-700 hover:bg-mint-900 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-colors">
+                  Comentar
+                </button>
+              </div>
+            </div>
+
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function renderHistorialFeed() {
+      const container = document.getElementById('historialFeedContainer');
+      if (!container) return;
+
+      if (!currentUser) {
+        container.innerHTML = `
+          <div class="bg-white rounded-3xl p-10 border border-mint-100 shadow-sm text-center">
+            <div class="w-14 h-14 bg-mint-50 text-mint-700 rounded-full flex items-center justify-center mx-auto mb-3 border border-mint-100">
+              <i data-lucide="lock" class="w-7 h-7 text-forest-800"></i>
+            </div>
+            <h4 class="text-base font-extrabold text-forest-800">Inicia sesión para ver tu historial</h4>
+            <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">Debes iniciar sesión para poder visualizar las publicaciones que has realizado.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      const myPosts = communityPosts.filter(post => post.usuario_id === currentUser.id);
+
+      if (!myPosts || myPosts.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-3xl p-10 border border-mint-100 shadow-sm text-center">
+            <div class="w-14 h-14 bg-mint-50 text-mint-700 rounded-full flex items-center justify-center mx-auto mb-3 border border-mint-100">
+              <i data-lucide="inbox" class="w-7 h-7 text-forest-800"></i>
+            </div>
+            <h4 class="text-base font-extrabold text-forest-800">No has realizado ninguna publicación</h4>
+            <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">Dirígete al muro comunitario para crear tu primer reporte de incidencia.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = myPosts.map(post => {
+        const bgBadge = post.severidad === 'Crítico' ? 'bg-red-200 text-red-800 border-red-300' :
+                        post.severidad === 'Alto' ? 'bg-red-100 text-red-700 border-red-200' :
+                        post.severidad === 'Medio' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                        'bg-emerald-100 text-emerald-700 border-emerald-200';
+
+        const heartColor = post.liked ? 'fill-red-500 text-red-500' : 'text-slate-400';
+
+        const commentsHtml = post.comentarios.map(c => `
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs">
+            <span class="font-bold text-forest-800">${c.usuario}:</span>
+            <span class="text-slate-600 ml-1">${c.texto}</span>
+          </div>
+        `).join('');
+
+        const imageHtml = post.imagen ? `
+          <div class="rounded-2xl overflow-hidden max-h-80 border border-slate-100 my-2 shadow-sm">
+            <img src="${post.imagen}" alt="Incidencia" class="w-full h-full object-cover">
+          </div>
+        ` : '';
+
+        return `
+          <div class="bg-white rounded-3xl p-6 border border-mint-100 shadow-sm space-y-4">
+            <!-- Header de la tarjeta -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-full bg-mint-100 border border-mint-200 text-mint-700 flex items-center justify-center font-bold text-base">
+                  <i data-lucide="user" class="w-6 h-6"></i>
+                </div>
+                <div>
+                  <h4 class="text-sm font-extrabold text-forest-800">${post.usuario}</h4>
+                  <p class="text-xs text-mint-700 font-semibold">${post.finca} • ${post.region}</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-xs font-extrabold px-2.5 py-0.5 rounded-full border ${bgBadge}">${post.severidad}</span>
+                <span class="text-[11px] text-slate-400 block mt-1">${post.fecha}</span>
+              </div>
+            </div>
+
+            <!-- Contenido principal -->
+            <div>
+              <h3 class="text-base font-extrabold text-slate-900 mb-1.5 flex items-center gap-2">
+                <i data-lucide="bug" class="w-4 h-4 text-mint-700"></i> ${post.titulo}
+              </h3>
+              <p class="text-xs text-slate-600 leading-relaxed">${post.descripcion}</p>
+              ${imageHtml}
+            </div>
+
+            <!-- Footer de interacciones -->
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div class="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                <i data-lucide="heart" class="w-4 h-4 ${heartColor}"></i>
+                <span>${post.likes} Me gusta</span>
+              </div>
+              <span class="text-xs text-slate-400 font-medium flex items-center gap-1">
+                <i data-lucide="message-square" class="w-4 h-4 text-slate-400"></i> ${post.comentarios.length} comentarios
+              </span>
+            </div>
+
+            <!-- Lista de comentarios -->
+            <div class="space-y-2 pt-1">
+              ${commentsHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    // Modal de Perfil de Usuario / Productor
+    function openUserProfileModal(userId, userName, farmName, region) {
+      document.getElementById('profileModalName').innerText = userName || "Productor Agrícola";
+      document.getElementById('profileModalFarm').innerText = `${farmName || 'Finca Registrada'} • ${region || 'Honduras'}`;
+
+      // Generar métricas de suelo personalizadas según la región/productor
+      const strLen = (userName || "Agro").length;
+      const phVal = (6.0 + (strLen % 10) * 0.1).toFixed(1);
+      const nitroVal = 65 + (strLen % 20);
+      const fosforoVal = 40 + (strLen % 15);
+      const potasioVal = 75 + (strLen % 25);
+      const humedadVal = 60 + (strLen % 20);
+      const tempVal = 24 + (strLen % 6);
+
+      document.getElementById('profilePh').innerHTML = `${phVal} <span class="text-xs font-normal text-slate-400">pH</span>`;
+      document.getElementById('profileNitro').innerHTML = `${nitroVal} <span class="text-xs font-normal text-slate-400">mg/kg</span>`;
+      document.getElementById('profileFosforo').innerHTML = `${fosforoVal} <span class="text-xs font-normal text-slate-400">mg/kg</span>`;
+      document.getElementById('profilePotasio').innerHTML = `${potasioVal} <span class="text-xs font-normal text-slate-400">mg/kg</span>`;
+      document.getElementById('profileHumedad').innerText = `${humedadVal}%`;
+      document.getElementById('profileTemp').innerText = `${tempVal}°C`;
+
+      // Filtrar publicaciones antiguas de este productor específico
+      const userPosts = communityPosts.filter(p => (userId && p.usuario_id === userId) || p.usuario === userName);
+      const container = document.getElementById('profilePostsContainer');
+
+      if (!userPosts || userPosts.length === 0) {
+        container.innerHTML = `
+          <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100 text-center">
+            <p class="text-xs text-slate-500">Este productor no tiene otras publicaciones registradas aún.</p>
+          </div>
+        `;
+      } else {
+        container.innerHTML = userPosts.map(post => {
+          const bgBadge = post.severidad === 'Crítico' ? 'bg-red-200 text-red-800 border-red-300' :
+                          post.severidad === 'Alto' ? 'bg-red-100 text-red-700 border-red-200' :
+                          post.severidad === 'Medio' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                          'bg-emerald-100 text-emerald-700 border-emerald-200';
+          const imageHtml = post.imagen ? `
+            <div class="rounded-xl overflow-hidden max-h-48 border border-slate-100 my-2 shadow-sm">
+              <img src="${post.imagen}" alt="Incidencia" class="w-full h-full object-cover">
+            </div>
+          ` : '';
+
+          return `
+            <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-200 space-y-2 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-extrabold text-forest-800 flex items-center gap-1">
+                  <i data-lucide="bug" class="w-3.5 h-3.5 text-mint-700"></i> ${post.titulo}
+                </span>
+                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${bgBadge}">${post.severidad}</span>
+              </div>
+              <p class="text-slate-600">${post.descripcion}</p>
+              ${imageHtml}
+              <div class="text-[10px] text-slate-400 text-right pt-1">${post.fecha}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      switchProfileTab('indicators');
+      document.getElementById('userProfileModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeUserProfileModal() {
+      document.getElementById('userProfileModal').classList.add('hidden');
+    }
+
+    function switchProfileTab(tabName) {
+      const indicatorsTab = document.getElementById('profileTabIndicators');
+      const postsTab = document.getElementById('profileTabPosts');
+      const indicatorsBtn = document.getElementById('profileTabIndicatorsBtn');
+      const postsBtn = document.getElementById('profileTabPostsBtn');
+
+      if (tabName === 'indicators') {
+        indicatorsTab.classList.remove('hidden');
+        postsTab.classList.add('hidden');
+        indicatorsBtn.className = "px-4 py-2 rounded-xl text-xs font-bold transition-all bg-mint-700 text-white shadow-sm flex items-center gap-2";
+        postsBtn.className = "px-4 py-2 rounded-xl text-xs font-bold transition-all text-slate-600 hover:text-mint-700 bg-slate-50 flex items-center gap-2";
+      } else {
+        indicatorsTab.classList.add('hidden');
+        postsTab.classList.remove('hidden');
+        postsBtn.className = "px-4 py-2 rounded-xl text-xs font-bold transition-all bg-mint-700 text-white shadow-sm flex items-center gap-2";
+        indicatorsBtn.className = "px-4 py-2 rounded-xl text-xs font-bold transition-all text-slate-600 hover:text-mint-700 bg-slate-50 flex items-center gap-2";
+      }
+      lucide.createIcons();
+    }
+
+    // Crear nueva publicación (Reporte de Incidencia)
+    async function handleCreatePost(e) {
+      e.preventDefault();
+      
+      if (!currentUser) {
+        showToast("Debes iniciar sesión para crear un reporte de incidencia.", "warning");
+        document.getElementById('authModal').classList.remove('hidden');
+        switchAuthTab('login');
+        return;
+      }
+
+      const plaga = document.getElementById('postPlaga').value;
+      const severidad = document.getElementById('postSeveridad').value;
+      const finca = document.getElementById('postFinca').value.trim() || currentUser.finca;
+      const region = document.getElementById('postRegion').value;
+      const desc = document.getElementById('postInputDesc').value.trim();
+      const imageUrlInput = document.getElementById('postImageUrl').value.trim();
+      const imagen = currentPostImageBase64 || (imageUrlInput.length > 5 ? imageUrlInput : null);
+
+      const tituloPost = `Incidencia de ${plaga}`;
+
+      const newPost = {
+        id: "post-" + Date.now(),
+        usuario: currentUser.nombre,
+        finca: finca,
+        region: region,
+        titulo: tituloPost,
+        descripcion: desc,
+        severidad: severidad,
+        imagen: imagen,
+        fecha: "Justo ahora",
+        likes: 0,
+        liked: false,
+        comentarios: []
+      };
+
+      if (supabaseClient) {
+        try {
+          // 1. Obtener la ID activa de Supabase Auth
+          const { data: authUserData } = await supabaseClient.auth.getUser();
+          const activeUserId = (authUserData && authUserData.user) ? authUserData.user.id : (currentUser ? currentUser.id : null);
+
+          if (activeUserId) {
+            currentUser.id = activeUserId;
+            const userEmail = (authUserData && authUserData.user && authUserData.user.email) 
+              ? authUserData.user.email 
+              : (currentUser.correo || `usuario_${activeUserId.substring(0,6)}@agroalerta.hn`);
+
+            // Verificar si la ID ya existe en public.usuarios
+            const { data: userById } = await supabaseClient
+              .from('usuarios')
+              .select('id')
+              .eq('id', activeUserId)
+              .maybeSingle();
+
+            if (!userById) {
+              // Si no existe por ID, verificar si existe por correo electrónico
+              const { data: userByEmail } = await supabaseClient
+                .from('usuarios')
+                .select('id')
+                .eq('correo', userEmail)
+                .maybeSingle();
+
+              const nameParts = (currentUser.nombre || "Productor").split(' ');
+
+              if (userByEmail) {
+                // Actualizar la ID del registro existente por correo
+                await supabaseClient
+                  .from('usuarios')
+                  .update({
+                    id: activeUserId,
+                    nombre: nameParts[0] || "Productor",
+                    apellido: nameParts.slice(1).join(' ') || "",
+                    departamento: currentUser.region || "Comayagua",
+                    comunidad: currentUser.finca || "Finca Registrada"
+                  })
+                  .eq('correo', userEmail);
+              } else {
+                // Insertar nuevo usuario si no existía ni por ID ni por correo
+                await supabaseClient.from('usuarios').insert([{
+                  id: activeUserId,
+                  nombre: nameParts[0] || "Productor",
+                  apellido: nameParts.slice(1).join(' ') || "",
+                  correo: userEmail,
+                  password: "AUTH_MANAGED",
+                  departamento: currentUser.region || "Comayagua",
+                  comunidad: currentUser.finca || "Finca Registrada"
+                }]);
+              }
+            }
+          }
+
+          // 3. Insertar la publicación en la tabla publicaciones
+          const { data: dbData, error: dbError } = await supabaseClient.from('publicaciones').insert([{
+            usuario_id: currentUser.id,
+            titulo: tituloPost,
+            descripcion: desc,
+            imagen: imagen
+          }]).select();
+
+          if (dbError) {
+            console.error("Error guardando reporte en Supabase:", dbError);
+            showToast("Error guardando en Supabase: " + dbError.message, "error");
+          } else if (dbData && dbData.length > 0) {
+            newPost.id = dbData[0].id;
+          }
+        } catch (err) {
+          console.error("Error guardando reporte en Supabase:", err);
+        }
+      }
+
+      communityPosts.unshift(newPost);
+      renderSocialFeed();
+      renderHistorialFeed();
+
+      // Sincronizar dinámicamente con el Mapa Fitosanitario
+      const DEPARTMENT_COORDS = {
+        'Comayagua': { lat: 14.4594, lng: -87.6375 },
+        'Copán': { lat: 14.8384, lng: -88.9472 },
+        'El Paraíso': { lat: 13.9961, lng: -86.5519 },
+        'Olancho': { lat: 14.6548, lng: -85.9189 },
+        'Choluteca': { lat: 13.3031, lng: -87.1914 },
+        'Yoro': { lat: 15.1375, lng: -87.1281 },
+        'Santa Bárbara': { lat: 14.9194, lng: -88.2361 },
+        'Cortés': { lat: 15.5042, lng: -88.0250 },
+        'Atlántida': { lat: 15.7597, lng: -86.7822 },
+        'La Paz': { lat: 14.3194, lng: -87.6792 },
+        'Lempira': { lat: 14.5889, lng: -88.5806 },
+        'Intibucá': { lat: 14.3175, lng: -88.1578 }
+      };
+
+      const baseCoords = DEPARTMENT_COORDS[region] || { lat: 14.4594, lng: -87.6375 };
+      const lat = baseCoords.lat + (Math.random() - 0.5) * 0.06;
+      const lng = baseCoords.lng + (Math.random() - 0.5) * 0.06;
+
+      const newMapReport = {
+        id: "REP-" + Date.now(),
+        plaga: plaga,
+        finca: finca,
+        region: region,
+        severidad: severidad,
+        fecha: "Hace instantes",
+        lat: lat,
+        lng: lng,
+        sintomas: desc,
+        tratamiento: "Evaluación técnica y monitoreo fitosanitario recomendado."
+      };
+
+      if (typeof pestReports !== 'undefined') {
+        pestReports.unshift(newMapReport);
+        if (typeof renderRecentIncidencesList === 'function') renderRecentIncidencesList();
+        if (map && typeof renderMapMarkers === 'function') renderMapMarkers(pestReports);
+      }
+
+      // Resetear campos
+      document.getElementById('postInputDesc').value = '';
+      removePostImagePreview();
+
+      showToast("¡Reporte de incidencia publicado y mapa actualizado!", "success");
+    }
+
+    // Toggle Like
+    async function toggleLike(postId) {
+      if (!currentUser) {
+        showToast("Debes iniciar sesión para dar me gusta", "warning");
+        return;
+      }
+      
+      const post = communityPosts.find(p => p.id === postId);
+      if (post) {
+        post.liked = !post.liked;
+        post.likes += post.liked ? 1 : -1;
+        renderSocialFeed();
+        renderHistorialFeed();
+        
+        if (supabaseClient) {
+          try {
+            if (post.liked) {
+              const { error } = await supabaseClient.from('likes').insert([{ usuario_id: currentUser.id, publicacion_id: postId }]);
+              if (error) {
+                console.error("Error Supabase al insertar like:", error);
+                showToast("Error al guardar el me gusta", "error");
+              }
+            } else {
+              const { error } = await supabaseClient.from('likes').delete().match({ usuario_id: currentUser.id, publicacion_id: postId });
+              if (error) {
+                console.error("Error Supabase al eliminar like:", error);
+                showToast("Error al quitar el me gusta", "error");
+              }
+            }
+          } catch (err) {
+            console.error("Error guardando like:", err);
+          }
+        }
+      }
+    }
+
+    // Agregar Comentario
+    async function addComment(postId) {
+      if (!currentUser) {
+        showToast("Debes iniciar sesión para comentar", "warning");
+        return;
+      }
+
+      const input = document.getElementById(`inputComment-${postId}`);
+      if (!input || !input.value.trim()) return;
+      const textoComentario = input.value.trim();
+
+      const post = communityPosts.find(p => p.id === postId);
+      if (post) {
+        // Actualizar UI optimísticamente
+        post.comentarios.push({
+          usuario: currentUser.nombre,
+          texto: textoComentario
+        });
+        input.value = ''; // Limpiar input
+        renderSocialFeed();
+        renderHistorialFeed();
+        showToast("Comentario agregado", "info");
+
+        // Guardar en Supabase
+        if (supabaseClient) {
+          try {
+            await supabaseClient.from('comentarios').insert([{
+              publicacion_id: postId,
+              usuario_id: currentUser.id,
+              comentario: textoComentario
+            }]);
+          } catch (err) {
+            console.error("Error guardando comentario:", err);
+          }
+        }
+      }
+    }
+
+    let resetEmail = '';
+
+    function switchAuthTab(mode) {
+      const loginForm = document.getElementById('loginForm');
+      const registerForm = document.getElementById('registerForm');
+      const forgotForm = document.getElementById('forgotForm');
+      const otpForm = document.getElementById('otpForm');
+      const newPasswordForm = document.getElementById('newPasswordForm');
+      const btnTabLogin = document.getElementById('btnTabLogin');
+      const btnTabRegister = document.getElementById('btnTabRegister');
+      const modalTitle = document.getElementById('authModalTitle');
+      const tabsContainer = document.getElementById('authTabsContainer');
+
+      loginForm.classList.add('hidden');
+      registerForm.classList.add('hidden');
+      forgotForm.classList.add('hidden');
+      otpForm.classList.add('hidden');
+      newPasswordForm.classList.add('hidden');
+      
+      // Ocultar pestañas si estamos en recuperación
+      if (mode === 'forgot' || mode === 'otp' || mode === 'new-password') {
+        tabsContainer.classList.add('hidden');
+      } else {
+        tabsContainer.classList.remove('hidden');
+      }
+
+      if (mode === 'login') {
+        loginForm.classList.remove('hidden');
+        btnTabLogin.className = "flex-1 py-2 text-xs font-bold rounded-xl transition-all bg-white text-forest-800 shadow-sm";
+        btnTabRegister.className = "flex-1 py-2 text-xs font-bold rounded-xl transition-all text-slate-500 hover:text-forest-800";
+        modalTitle.innerText = "Iniciar Sesión";
+      } else if (mode === 'register') {
+        registerForm.classList.remove('hidden');
+        btnTabRegister.className = "flex-1 py-2 text-xs font-bold rounded-xl transition-all bg-white text-forest-800 shadow-sm";
+        btnTabLogin.className = "flex-1 py-2 text-xs font-bold rounded-xl transition-all text-slate-500 hover:text-forest-800";
+        modalTitle.innerText = "Crear Cuenta de Productor";
+      } else if (mode === 'forgot') {
+        forgotForm.classList.remove('hidden');
+        modalTitle.innerText = "Recuperar Contraseña";
+      } else if (mode === 'otp') {
+        otpForm.classList.remove('hidden');
+        modalTitle.innerText = "Verificar Código";
+      } else if (mode === 'new-password') {
+        newPasswordForm.classList.remove('hidden');
+        modalTitle.innerText = "Nueva Contraseña";
+      }
+    }
+
+    async function handleForgotPassword(e) {
+      e.preventDefault();
+      const correo = document.getElementById('forgotCorreo').value.trim();
+      
+      if (supabaseClient) {
+        const { data, error } = await supabaseClient.auth.resetPasswordForEmail(correo);
+        if (error) {
+          showToast("Error: " + error.message, "error");
+        } else {
+          resetEmail = correo; // Guardar el correo para verificar el código después
+          showToast("Código de 6 dígitos enviado a tu correo.", "success");
+          document.getElementById('forgotCorreo').value = '';
+          switchAuthTab('otp');
+        }
+      } else {
+        showToast("Error de conexión con Supabase", "error");
+      }
+    }
+
+    async function handleVerifyOtp(e) {
+      e.preventDefault();
+      const code = document.getElementById('otpCode').value.trim();
+      
+      if (supabaseClient) {
+        const { data, error } = await supabaseClient.auth.verifyOtp({
+          email: resetEmail,
+          token: code,
+          type: 'recovery'
+        });
+
+        if (error) {
+          showToast("Código incorrecto o expirado: " + error.message, "error");
+        } else {
+          showToast("¡Código correcto!", "success");
+          document.getElementById('otpCode').value = '';
+          switchAuthTab('new-password');
+        }
+      }
+    }
+
+    async function handleUpdatePassword(e) {
+      e.preventDefault();
+      const newPassword = document.getElementById('newPasswordInput').value.trim();
+      
+      if (supabaseClient) {
+        const { data, error } = await supabaseClient.auth.updateUser({
+          password: newPassword
+        });
+
+        if (error) {
+          showToast("Error al guardar contraseña: " + error.message, "error");
+        } else {
+          showToast("¡Contraseña actualizada exitosamente!", "success");
+          document.getElementById('newPasswordInput').value = '';
+          // Cierra el modal y deja al usuario logueado
+          document.getElementById('authModal').classList.add('hidden');
+          switchAuthTab('login'); // Por si lo abren de nuevo
+        }
+      }
+    }
+
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const correo = document.getElementById('loginCorreo').value.trim();
+      const password = document.getElementById('loginPassword').value.trim();
+
+      if (supabaseClient) {
+        try {
+          // 1. Sign In con Supabase Auth
+          const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+            email: correo,
+            password: password,
+          });
+
+          if (authError) {
+            showToast("Correo o contraseña incorrectos", "error");
+            return;
+          }
+
+          // 2. Obtener el perfil de usuario de la tabla pública
+          const { data: userProfile, error: profileError } = await supabaseClient
+            .from('usuarios')
+            .select('*')
+            .eq('id', authData.user.id)
+            .single();
+
+          if (userProfile) {
+            currentUser = {
+              id: userProfile.id,
+              nombre: `${userProfile.nombre} ${userProfile.apellido || ''}`.trim(),
+              correo: userProfile.correo,
+              finca: userProfile.comunidad || "Finca Registrada",
+              region: userProfile.departamento || "Comayagua",
+              foto: userProfile.foto
+            };
+            localStorage.setItem('agroalerta_user', JSON.stringify(currentUser));
+            showToast(`¡Bienvenido de nuevo, ${currentUser.nombre}!`, "success");
+          } else {
+            // Caso raro: usuario en Auth pero sin perfil en tabla public
+            // Para evitar 409 en likes/comentarios, lo creamos ahora
+            const missingProfile = {
+              id: authData.user.id,
+              nombre: correo.split('@')[0],
+              correo: correo,
+              comunidad: "Finca Registrada",
+              departamento: "Comayagua",
+              password: "generado-automaticamente"
+            };
+            await supabaseClient.from('usuarios').upsert([missingProfile], { onConflict: 'correo' });
+            
+            currentUser = { 
+              id: authData.user.id, 
+              nombre: missingProfile.nombre, 
+              correo: correo, 
+              finca: missingProfile.comunidad, 
+              region: missingProfile.departamento 
+            };
+            localStorage.setItem('agroalerta_user', JSON.stringify(currentUser));
+            showToast(`¡Bienvenido, ${currentUser.nombre}!`, "success");
+          }
+        } catch (err) {
+          console.error("Login Supabase Error:", err);
+          showToast("Error interno durante el inicio de sesión", "error");
+        }
+      }
+
+      updateUserUI();
+      fetchSupabasePosts();
+      document.getElementById('authModal').classList.add('hidden');
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const nombre = document.getElementById('regNombre').value.trim();
+      const apellido = document.getElementById('regApellido').value.trim();
+      const correo = document.getElementById('regCorreo').value.trim();
+      const password = document.getElementById('regPassword').value.trim();
+      const telefono = document.getElementById('regTelefono').value.trim();
+      const departamento = document.getElementById('regDepartamento').value;
+      const municipio = document.getElementById('regMunicipio').value.trim();
+      const comunidad = document.getElementById('regComunidad').value.trim();
+      const foto = document.getElementById('regFoto').value.trim();
+
+      if (supabaseClient) {
+        try {
+          // 1. Crear el usuario en Supabase Auth
+          const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+            email: correo,
+            password: password,
+          });
+
+          if (authError) {
+            showToast("Error al registrar cuenta: " + authError.message, "error");
+            return;
+          }
+
+          if (!authData.user) {
+            showToast("Error desconocido al crear la cuenta en Auth.", "error");
+            return;
+          }
+
+          // 2. Crear el perfil en la tabla public.usuarios (ya no incluimos el password)
+          const newUserPayload = {
+            id: authData.user.id, // Linkeado directamente a Auth
+            nombre,
+            apellido,
+            correo,
+            password: password, // Incluido para cumplir con la restricción NOT NULL de la tabla usuarios en PostgreSQL
+            telefono,
+            departamento,
+            municipio,
+            comunidad,
+            foto: foto || null
+          };
+
+          const { data: profileData, error: profileError } = await supabaseClient
+            .from('usuarios')
+            .insert([newUserPayload])
+            .select()
+            .single();
+
+          if (profileError) {
+            showToast("Error guardando perfil: " + profileError.message, "error");
+            return;
+          }
+
+          // Iniciar sesión automáticamente en la UI
+          currentUser = {
+            id: authData.user.id,
+            nombre: `${nombre} ${apellido}`.trim(),
+            correo: correo,
+            finca: comunidad || "Finca Registrada",
+            region: departamento || "Comayagua",
+            foto: foto || null
+          };
+          localStorage.setItem('agroalerta_user', JSON.stringify(currentUser));
+          showToast("¡Cuenta creada exitosamente!", "success");
+
+        } catch (err) {
+          console.error("Register Error:", err);
+          showToast("Hubo un error interno.", "error");
+        }
+      }
+
+      updateUserUI();
+      fetchSupabasePosts();
+      document.getElementById('authModal').classList.add('hidden');
+    }
+
+
+    function updateUserUI() {
+      const container = document.getElementById('userHeaderContainer');
+      const authorName = document.getElementById('postAuthorName');
+      const authorFarm = document.getElementById('postAuthorFarm');
+
+      const climaContent = document.getElementById('climaSueloContent');
+      const climaLock = document.getElementById('climaSueloLock');
+      const dashContent = document.getElementById('dashboardContent');
+      const dashLock = document.getElementById('dashboardLock');
+
+      if (currentUser) {
+        if (container) {
+          container.innerHTML = `
+            <div class="text-right hidden sm:block">
+              <div class="text-sm font-bold text-forest-800">${currentUser.nombre}</div>
+              <div class="text-xs text-mint-700 font-medium">${currentUser.finca} • ${currentUser.region}</div>
+            </div>
+              <button onclick="handleLogout()" title="Cerrar Sesión" class="px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm">
+              <i data-lucide="log-out" class="w-4 h-4"></i>
+              <span class="hidden sm:inline">Cerrar Sesión</span>
+            </button>
+          `;
+        }
+        if (authorName) authorName.innerText = currentUser.nombre;
+        if (authorFarm) authorFarm.innerText = `${currentUser.finca} • ${currentUser.region}`;
+        if (climaContent) climaContent.classList.remove('hidden');
+        if (climaLock) climaLock.classList.add('hidden');
+        if (dashContent) dashContent.classList.remove('hidden');
+        if (dashLock) dashLock.classList.add('hidden');
+      } else {
+        if (container) {
+          container.innerHTML = `
+            <button onclick="openAuthModal()" class="bg-mint-700 hover:bg-mint-900 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition-all flex items-center gap-2">
+              <i data-lucide="log-in" class="w-4 h-4"></i>
+              <span>Iniciar Sesión / Registrarse</span>
+            </button>
+          `;
+        }
+        if (authorName) authorName.innerText = "Invitado";
+        if (authorFarm) authorFarm.innerText = "Inicia sesión para publicar con tu nombre";
+        if (climaContent) climaContent.classList.add('hidden');
+        if (climaLock) climaLock.classList.remove('hidden');
+        if (dashContent) dashContent.classList.add('hidden');
+        if (dashLock) dashLock.classList.remove('hidden');
+      }
+
+      lucide.createIcons();
+      renderHistorialFeed();
+    }
+
+    async function handleLogout() {
+      currentUser = null;
+      localStorage.removeItem('agroalerta_user');
+      if (supabaseClient) {
+        await supabaseClient.auth.signOut();
+      }
+      updateUserUI();
+      fetchSupabasePosts();
+      showToast("Has cerrado sesión en AgroAlerta", "info");
+    }
+
+    function openAuthModal() {
+      document.getElementById('authModal').classList.remove('hidden');
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`module-${tabId}`).classList.remove('hidden');
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-white', 'text-mint-700', 'shadow-sm');
+        btn.classList.add('text-slate-600');
+      });
+      const activeBtn = document.getElementById(`tab-${tabId}`);
+      if(activeBtn) {
+        activeBtn.classList.add('bg-white', 'text-mint-700', 'shadow-sm');
+        activeBtn.classList.remove('text-slate-600');
+      }
+
+      if(tabId === 'mapa') {
+        setTimeout(initLeafletMap, 100);
+      }
+    }
+
+    function initSoilChart() {
+      const ctx = document.getElementById('soilHumidityChart').getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+      gradient.addColorStop(0, 'rgba(46, 125, 50, 0.35)');
+      gradient.addColorStop(1, 'rgba(46, 125, 50, 0.0)');
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'],
+          datasets: [{
+            label: 'Humedad (analisis_suelo)',
+            data: [62, 58, 55, 70, 84, 88, 82, 85, 90, 86, 75, 68],
+            borderColor: '#2e7d32',
+            borderWidth: 3,
+            backgroundColor: gradient,
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    function renderAlertsFeed() {
+      const container = document.getElementById('dashboardAlertsFeed');
+      if (!container) return;
+      container.innerHTML = pestReports.map(item => {
+        const bgBadge = item.severidad === 'Alto' ? 'bg-red-100 text-red-700' : (item.severidad === 'Medio' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700');
+        return `
+          <div onclick="selectPestForDetail('${item.id}')" class="p-3.5 bg-mint-50/50 hover:bg-mint-100/80 border border-mint-100 rounded-2xl cursor-pointer transition-all">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-forest-800">${item.plaga}</span>
+              <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full ${bgBadge}">${item.severidad}</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">${item.region} • ${item.finca}</p>
+            <span class="text-[10px] text-slate-400 block mt-1">${item.fecha}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function initLeafletMap() {
+      if(map) { map.invalidateSize(); return; }
+      map = L.map('map').setView([14.6349, -86.5162], 7);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      renderMapMarkers(pestReports);
+    }
+
+    function renderMapMarkers(data) {
+      mapMarkers.forEach(m => map.removeLayer(m));
+      mapMarkers = [];
+
+      data.forEach(item => {
+        const color = item.severidad === 'Alto' ? '#ef4444' : (item.severidad === 'Medio' ? '#f59e0b' : '#10b981');
+        const customIcon = L.divIcon({
+          className: 'custom-map-pin',
+          html: `<div style="background-color: ${color}; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; shadow: 0 4px 6px rgba(0,0,0,0.3);"></div>`,
+          iconSize: [18, 18]
+        });
+
+        const marker = L.marker([item.lat, item.lng], { icon: customIcon }).addTo(map);
+        marker.bindPopup(`<strong>${item.plaga}</strong><br/>${item.region} - ${item.finca}`);
+        marker.on('click', () => selectPestForDetail(item.id));
+        mapMarkers.push(marker);
+      });
+    }
+
+    function filterMapRegion() {
+      const selected = document.getElementById('filterRegion').value;
+      if(selected === 'TODAS') {
+        renderMapMarkers(pestReports);
+        map.setView([14.6349, -86.5162], 7);
+      } else {
+        const filtered = pestReports.filter(r => r.region === selected);
+        renderMapMarkers(filtered);
+        if(filtered.length > 0) map.setView([filtered[0].lat, filtered[0].lng], 9);
+      }
+    }
+
+    function selectPestForDetail(id) {
+      const item = pestReports.find(r => r.id === id);
+      if(!item) return;
+
+      document.getElementById('detailTitle').innerText = item.plaga;
+      document.getElementById('detailLocation').innerText = `${item.region} • ${item.finca}`;
+      document.getElementById('detailDate').innerText = item.fecha;
+      document.getElementById('detailSymptoms').innerText = item.sintomas;
+      document.getElementById('detailTreatment').innerText = item.tratamiento;
+      document.getElementById('detailSqlId').innerText = item.id;
+
+      const badge = document.getElementById('detailBadge');
+      badge.innerText = `Riesgo ${item.severidad}`;
+      badge.className = `text-xs font-extrabold px-2.5 py-1 rounded-full ${
+        item.severidad === 'Alto' ? 'bg-red-100 text-red-700 border border-red-200' :
+        (item.severidad === 'Medio' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200')
+      }`;
+
+      switchTab('mapa');
+    }
+
+    async function handleReportSubmit(e) {
+      e.preventDefault();
+      
+      const plaga = document.getElementById('reportePlaga').value;
+      const severidad = document.getElementById('reporteSeveridad').value;
+      const finca = document.getElementById('reporteFinca').value;
+      const region = document.getElementById('reporteRegion').value;
+      const notas = document.getElementById('reporteNotas').value;
+
+      const newPost = {
+        id: "post-" + Date.now(),
+        usuario: currentUser.nombre,
+        finca: finca,
+        region: region,
+        titulo: `Reporte Fitosanitario: ${plaga}`,
+        descripcion: notas || `Presencia de ${plaga} notada en ${finca}.`,
+        severidad: severidad,
+        fecha: "Justo ahora",
+        likes: 0,
+        liked: false,
+        comentarios: []
+      };
+
+      communityPosts.unshift(newPost);
+      renderSocialFeed();
+
+      document.getElementById('formReporte').reset();
+      showToast("¡Reporte guardado y publicado en la Comunidad!", "success");
+      switchTab('comunidad');
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto bg-forest-800 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-xl border border-mint-500/30 flex items-center gap-2 transform transition-all duration-300 translate-y-2 opacity-0`;
+      toast.innerHTML = `<i data-lucide="users" class="w-4 h-4 text-emerald-400"></i> <span>${message}</span>`;
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+  </script>
+</body>
+</html>
